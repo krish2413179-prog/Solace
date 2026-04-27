@@ -1,0 +1,29 @@
+{
+  "name": "solace-agents",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    
+      "build":        "tsc",
+      "orchestrator": "tsx src/orchestrator.ts",
+      "worker":       "tsx src/worker.ts",
+      "keeper":       "tsx src/keeper.ts",
+      "sabotage":     "tsx src/sabotage.ts",
+      "keygen":       "tsx src/keygen.ts"
+
+  },
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
+    "@0glabs/0g-serving-broker": "^0.2.7",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.21.0"
+  }
+}

@@ -15,7 +15,8 @@ export const config = {
   SOLACE_ADDRESS:   require("SOLACE_ADDRESS"),
   REGISTRY_ADDRESS: require("REGISTRY_ADDRESS"),
 
-  PRIVATE_KEY:      require("PRIVATE_KEY"),
+  KEYSTORE_PATH:    optional("KEYSTORE_PATH",     "./keystores/agent.json"),
+  KEYSTORE_PASSWORD: optional("KEYSTORE_PASSWORD", ""),
 
   AXL_BROKER_URL:      optional("AXL_BROKER_URL",      "http://127.0.0.1:7777"),
   PIPELINE_CHANNEL_ID: optional("PIPELINE_CHANNEL_ID", "0xSOLACE01"),

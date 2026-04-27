@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { config } from "../config.js";
 import { getLogger } from "./logger.js";
+import { loadKeystore } from "./wallet";
 
 const logger = getLogger("utils/chain");
 const __dir  = dirname(fileURLToPath(import.meta.url));
@@ -12,8 +13,12 @@ export function getProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(config.RPC_URL);
 }
 
-export function getWallet(provider: ethers.JsonRpcProvider): ethers.Wallet {
-  return new ethers.Wallet(config.PRIVATE_KEY, provider);
+export async function getWallet(provider: ethers.JsonRpcProvider): Promise<ethers.Wallet> {
+  const wallet = await loadKeystore(
+    config.KEYSTORE_PATH,
+    config.KEYSTORE_PASSWORD || undefined,
+  );
+  return wallet.connect(provider);
 }
 
 export function getSolace(wallet: ethers.Wallet): ethers.Contract {
