@@ -154,7 +154,7 @@ async function main() {
   const task: Task = JSON.parse(readFileSync(taskFile, "utf8"));
 
   const provider = getProvider();
-  const wallet   = getWallet(provider);
+  const wallet   = await getWallet(provider);
   const solace   = getSolace(wallet);
   const registry = getRegistry(wallet);
   const axl      = new AXLClient(CHANNEL, wallet.address);

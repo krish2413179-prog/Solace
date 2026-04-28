@@ -1,0 +1,17 @@
+{
+  "type": "smart_contract_audit",
+  "description": "Full security audit of a Solidity ERC-20 token contract",
+  "required_capabilities": ["static_analysis", "gas_optimization"],
+  "steps": [
+    {
+      "agent_index": 0,
+      "job": "static_analysis",
+      "input": "pragma solidity ^0.8.20;\n\ncontract SimpleToken {\n    mapping(address => uint256) public balances;\n    address public owner;\n    uint256 public totalSupply;\n\n    constructor(uint256 _supply) {\n        owner = msg.sender;\n        totalSupply = _supply;\n        balances[msg.sender] = _supply;\n    }\n\n    function transfer(address to, uint256 amount) external {\n        require(balances[msg.sender] >= amount);\n        balances[msg.sender] -= amount;\n        balances[to] += amount;\n    }\n\n    function mint(address to, uint256 amount) external {\n        require(msg.sender == owner);\n        balances[to] += amount;\n        totalSupply += amount;\n    }\n\n    function withdraw() external {\n        uint256 bal = balances[msg.sender];\n        (bool ok,) = msg.sender.call{value: bal}(\"\");\n        require(ok);\n        balances[msg.sender] = 0;\n    }\n}"
+    },
+    {
+      "agent_index": 1,
+      "job": "gas_optimization",
+      "input": "pragma solidity ^0.8.20;\n\ncontract SimpleToken {\n    mapping(address => uint256) public balances;\n    address public owner;\n    uint256 public totalSupply;\n\n    constructor(uint256 _supply) {\n        owner = msg.sender;\n        totalSupply = _supply;\n        balances[msg.sender] = _supply;\n    }\n\n    function transfer(address to, uint256 amount) external {\n        require(balances[msg.sender] >= amount);\n        balances[msg.sender] -= amount;\n        balances[to] += amount;\n    }\n\n    function mint(address to, uint256 amount) external {\n        require(msg.sender == owner);\n        balances[to] += amount;\n        totalSupply += amount;\n    }\n}"
+    }
+  ]
+}

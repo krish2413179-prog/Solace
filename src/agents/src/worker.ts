@@ -7,6 +7,11 @@ import { AXLClient } from "./axl/client.js";
 import { execute, getAvailableJobs } from "./executors/index.js";
 import { persistTaskRecord } from "./og/storage.js";
 
+process.on('uncaughtException', (e) => {
+  console.error('FULL ERROR:', e);
+  console.error(e.stack);
+});
+
 const logger = getLogger("worker");
 
 const CHANNEL    = process.env.PIPELINE_CHANNEL_ID ?? config.PIPELINE_CHANNEL_ID;
@@ -53,7 +58,8 @@ async function waitForTask(axl: AXLClient, address: string): Promise<TaskPayload
     const msgs = await axl.poll("TASK_REGISTRATION", 0);
     for (const msg of msgs) {
       const payload = msg.payload as TaskPayload;
-      const agents  = payload.agents?.map(a => a.toLowerCase()) ?? [];
+      if (!payload?.agents?.length) continue;
+      const agents = payload.agents.map((a: string) => a.toLowerCase());
       if (agents.includes(address.toLowerCase())) {
         logger.info(`Task accepted from ${msg.sender.slice(0, 12)}...`);
         return payload;
@@ -111,7 +117,7 @@ async function waitForPipelineActive(
 
 async function main() {
   const provider = getProvider();
-  const wallet   = getWallet(provider);
+  const wallet   = await getWallet(provider);
   const solace   = getSolace(wallet);
   const registry = getRegistry(wallet);
   const axl      = new AXLClient(CHANNEL, wallet.address);
