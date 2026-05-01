@@ -2,15 +2,12 @@
 node_modules/
 dist/
 keystores/
-*.b64
-railway_env.txt
 *.log
 .DS_Store
 
 # Documentation files (don't push to GitHub)
 *.md
 !README.md
-!DEPLOYMENT.md
 
 # Logs
 logs/
