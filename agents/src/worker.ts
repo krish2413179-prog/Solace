@@ -58,7 +58,7 @@ let aborted = false;
 
 import { sendSponsoredTransaction } from "./keeperhub/client.js";
 
-async function ensureRegistered(registry: ethers.Contract, wallet: ethers.Wallet): Promise<void> {
+async function ensureRegistered(registry: ethers.Contract, wallet: ethers.Wallet | ethers.HDNodeWallet): Promise<void> {
   const isReg = await registry.isRegistered(wallet.address) as boolean;
   if (isReg) {
     logger.info("Already registered");
@@ -101,7 +101,7 @@ async function waitForTask(axl: AXLClient, address: string, seenPipelines: Set<s
     const msgs = await axl.poll("TASK_ASSIGNMENT", 0);
     for (const msg of msgs) {
       if (msg.timestamp < startedAfter / 1000) continue;
-      const p = msg.payload as TaskPayload;
+      const p = msg.payload as unknown as TaskPayload;
       if (!p?.pipeline_id) continue;
       const taskKey = `${p.pipeline_id}:${p.step_index}`;
       if (seenPipelines.has(taskKey)) continue;
@@ -169,7 +169,7 @@ async function runAsSubOrchestrator(
   solace:      ethers.Contract,
   registry:    ethers.Contract,
   axl:         AXLClient,
-  wallet:      ethers.Wallet,
+  wallet:      ethers.Wallet | ethers.HDNodeWallet,
   parentId:    string,
   stepIndex:   number,
   step:        StepSpec,
@@ -336,7 +336,7 @@ async function waitForPipelineActive(axl: AXLClient, solace: ethers.Contract, st
 
 async function runOnce(
   provider: ethers.JsonRpcProvider,
-  wallet:   ethers.Wallet,
+  wallet:   ethers.Wallet | ethers.HDNodeWallet,
   solace:   ethers.Contract,
   registry: ethers.Contract,
   axl:      AXLClient,

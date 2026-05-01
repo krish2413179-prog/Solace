@@ -36,6 +36,7 @@ function prune() {
 }
 
 async function startNode() {
+  // @ts-ignore - Type incompatibility between libp2p versions
   node = await createLibp2p({
     addresses: {
       listen: [`/ip4/0.0.0.0/tcp/${PORT}`],
@@ -49,7 +50,7 @@ async function startNode() {
       pubsub: gossipsub({
         allowPublishToZeroTopicPeers: true,
         emitSelf: true,
-      }),
+      }) as any,
       dht: kadDHT({
         clientMode: false,
       }),

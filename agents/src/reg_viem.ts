@@ -1,6 +1,5 @@
 import { createWalletClient, createPublicClient, http, parseEther } from 'viem';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
-import { ogTestnet } from './chain';
 
 const REGISTRY_ADDRESS = '0x21cB38cA0AC6185C3aC4C17259c04BCE334Dc33c';
 

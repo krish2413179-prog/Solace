@@ -32,13 +32,14 @@
     "ethers": "^6.13.0",
     "libp2p": "^3.2.3",
     "multiformats": "^13.4.2",
+    "solc": "^0.8.20",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.0",
-    "uint8arrays": "^5.1.1"
+    "uint8arrays": "^5.1.1",
+    "viem": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
-    "solc": "^0.8.20",
     "tsx": "^4.21.0"
   }
 }

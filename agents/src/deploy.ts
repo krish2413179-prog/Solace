@@ -1,3 +1,4 @@
+// @ts-ignore - solc doesn't have type definitions
 import solc from "solc";
 import { readFileSync, writeFileSync } from "fs";
 import { ethers } from "ethers";

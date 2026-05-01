@@ -7,7 +7,7 @@ const logger = getLogger("keeper");
 
 async function watch(pipelineId: string): Promise<void> {
   const provider = getProvider();
-  const wallet   = getWallet(provider);
+  const wallet   = await getWallet(provider);
   const solace   = getSolace(wallet);
 
   logger.info(`KeeperHub watcher started`);

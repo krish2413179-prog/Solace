@@ -1,5 +1,5 @@
-import { createKeystore } from "./utils/wallet.ts";
-import { getLogger } from "./utils/logger.ts";
+import { createKeystore } from "./utils/wallet.js";
+import { getLogger } from "./utils/logger.js";
 
 const logger = getLogger("keygen");
 

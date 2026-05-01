@@ -4,7 +4,7 @@ import { getLogger } from "../utils/logger.js";
 
 const logger = getLogger("executors");
 
-type Executor = (wallet: ethers.Wallet, input: string, params: Record<string, unknown>) => Promise<string>;
+type Executor = (wallet: ethers.Wallet | ethers.HDNodeWallet, input: string, params: Record<string, unknown>) => Promise<string>;
 
 const REGISTRY: Map<string, Executor> = new Map();
 
@@ -18,7 +18,7 @@ export function getAvailableJobs(): string[] {
 }
 
 export async function execute(
-    wallet:  ethers.Wallet,
+    wallet:  ethers.Wallet | ethers.HDNodeWallet,
     jobType: string,
     input:   string,
     params:  Record<string, unknown> = {},

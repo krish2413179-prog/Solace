@@ -34,7 +34,7 @@ async function prompt(question: string): Promise<string> {
 export async function loadOrCreateKeystore(
   keystorePath: string,
   password?:    string,
-): Promise<ethers.Wallet> {
+): Promise<ethers.Wallet | ethers.HDNodeWallet> {
   if (existsSync(keystorePath)) {
     return loadKeystore(keystorePath, password);
   }
@@ -45,7 +45,7 @@ export async function loadOrCreateKeystore(
 export async function loadKeystore(
   keystorePath: string,
   password?:    string,
-): Promise<ethers.Wallet> {
+): Promise<ethers.Wallet | ethers.HDNodeWallet> {
   if (!existsSync(keystorePath)) {
     throw new Error(`Keystore not found: ${keystorePath}`);
   }
@@ -59,7 +59,7 @@ export async function loadKeystore(
 export async function createKeystore(
   keystorePath: string,
   password?:    string,
-): Promise<ethers.Wallet> {
+): Promise<ethers.Wallet | ethers.HDNodeWallet> {
   const wallet  = ethers.Wallet.createRandom();
   const pwd     = password || await prompt(`Set password for new keystore [${keystorePath}]: `);
   const json    = await wallet.encrypt(pwd);

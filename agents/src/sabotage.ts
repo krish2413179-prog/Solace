@@ -13,7 +13,7 @@ interface TaskPayload {
 
 async function main() {
   const provider = getProvider();
-  const wallet   = getWallet(provider);
+  const wallet   = await getWallet(provider);
   const axl      = new AXLClient(CHANNEL, wallet.address);
 
   logger.info(`[SABOTAGE] Wallet  : ${wallet.address}`);

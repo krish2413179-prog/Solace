@@ -13,20 +13,20 @@ export function getProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(config.RPC_URL);
 }
 
-export async function getWallet(provider: ethers.JsonRpcProvider): Promise<ethers.Wallet> {
+export async function getWallet(provider: ethers.JsonRpcProvider): Promise<ethers.Wallet | ethers.HDNodeWallet> {
   const wallet = await loadKeystore(
     config.KEYSTORE_PATH,
     config.KEYSTORE_PASSWORD || undefined,
   );
-  return wallet.connect(provider);
+  return wallet.connect(provider) as ethers.Wallet | ethers.HDNodeWallet;
 }
 
-export function getSolace(wallet: ethers.Wallet): ethers.Contract {
+export function getSolace(wallet: ethers.Wallet | ethers.HDNodeWallet): ethers.Contract {
   const abi = JSON.parse(readFileSync(join(__dir, "../../abi.json"), "utf8"));
   return new ethers.Contract(config.SOLACE_ADDRESS, abi, wallet);
 }
 
-export function getRegistry(wallet: ethers.Wallet): ethers.Contract {
+export function getRegistry(wallet: ethers.Wallet | ethers.HDNodeWallet): ethers.Contract {
   const abi = JSON.parse(readFileSync(join(__dir, "../../registry_abi.json"), "utf8"));
   return new ethers.Contract(config.REGISTRY_ADDRESS, abi, wallet);
 }
