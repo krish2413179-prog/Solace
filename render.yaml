@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: starter        # use 'free' if you want free tier (spins down after inactivity)
     rootDir: agents
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: node dist/cloud_swarm.js
     healthCheckPath: /health
     envVars:

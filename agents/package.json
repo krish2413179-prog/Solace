@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/patch-esm.js",
+    "postinstall": "node scripts/patch-esm.js",
     "orchestrator": "tsx src/orchestrator.ts",
     "broker": "tsx src/axl_broker.ts",
     "broker:libp2p": "tsx src/axl_libp2p_broker.ts",
