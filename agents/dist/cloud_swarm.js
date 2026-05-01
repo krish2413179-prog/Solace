@@ -12,7 +12,7 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import http from 'http';
 // ── Config ─────────────────────────────────────────────────────────────────
-const WORKER_COUNT = parseInt(process.env.WORKER_COUNT ?? '10');
+const WORKER_COUNT = parseInt(process.env.WORKER_COUNT ?? '5');
 const PASSWORD = process.env.KEYSTORE_PASSWORD ?? 'password123';
 const PORT = parseInt(process.env.PORT ?? '8080');
 const BROKER_PORT = 7777;
@@ -120,7 +120,7 @@ function spawnWorker(index) {
     }
     const color = 31 + (index % 6);
     const label = `Worker${index}`;
-    const child = spawn('node', ['dist/worker.js'], {
+    const child = spawn('node', ['--max-old-space-size=60', 'dist/worker.js'], {
         env: { ...baseEnv, KEYSTORE_PATH: keystorePath, AGENT_INDEX: String(index) },
         stdio: 'pipe',
         shell: false,

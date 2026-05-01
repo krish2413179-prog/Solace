@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { config } from "../config.js";
 import { getLogger } from "./logger.js";
-import { loadKeystore } from "./wallet";
+import { loadKeystore } from "./wallet.js";
 
 const logger = getLogger("utils/chain");
 const __dir  = dirname(fileURLToPath(import.meta.url));

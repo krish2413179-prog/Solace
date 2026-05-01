@@ -5,8 +5,8 @@ services:
     region: oregon
     plan: starter        # use 'free' if you want free tier (spins down after inactivity)
     rootDir: agents
-    buildCommand: npm install && npm run build
-    startCommand: node dist/cloud_swarm.js
+    buildCommand: npm install && npm run build && node scripts/patch-esm.js
+    startCommand: node --max-old-space-size=200 dist/cloud_swarm.js
     healthCheckPath: /health
     envVars:
       # ── Blockchain ──────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ services:
 
       # ── Swarm config ────────────────────────────────────────────────────
       - key: WORKER_COUNT
-        value: "3"
+        value: "5"
       - key: PIPELINE_CHANNEL_ID
         value: "0xSOLACE01"
 
