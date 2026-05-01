@@ -1,0 +1,104 @@
+{
+  "type": "sentiment_analysis",
+  "description": "Analyze social media sentiment for DeFi protocol launch",
+  "bounty_eth": 0.025,
+  "deadline_hours": 1,
+  "min_score": 55,
+  "steps": [
+    {
+      "id": 0,
+      "job": "data_collection",
+      "input": "twitter_api_query: #DeFiProtocol OR @DeFiProtocol",
+      "dependsOn": [],
+      "capability": "data_scraping",
+      "complexity": 30,
+      "payout_share": 0.15,
+      "description": "Collect 50,000 tweets from last 7 days"
+    },
+    {
+      "id": 1,
+      "job": "text_preprocessing",
+      "input": "raw_tweets",
+      "dependsOn": [0],
+      "capability": "nlp_preprocessing",
+      "complexity": 25,
+      "payout_share": 0.10,
+      "description": "Clean text, remove spam, normalize, tokenize"
+    },
+    {
+      "id": 2,
+      "job": "sentiment_classification_batch_1",
+      "input": "tweets_1-10000",
+      "dependsOn": [1],
+      "capability": "sentiment_analysis",
+      "complexity": 45,
+      "payout_share": 0.12,
+      "description": "Classify sentiment: positive/negative/neutral"
+    },
+    {
+      "id": 3,
+      "job": "sentiment_classification_batch_2",
+      "input": "tweets_10001-20000",
+      "dependsOn": [1],
+      "capability": "sentiment_analysis",
+      "complexity": 45,
+      "payout_share": 0.12,
+      "description": "Classify sentiment: positive/negative/neutral"
+    },
+    {
+      "id": 4,
+      "job": "sentiment_classification_batch_3",
+      "input": "tweets_20001-30000",
+      "dependsOn": [1],
+      "capability": "sentiment_analysis",
+      "complexity": 45,
+      "payout_share": 0.12,
+      "description": "Classify sentiment: positive/negative/neutral"
+    },
+    {
+      "id": 5,
+      "job": "entity_extraction",
+      "input": "all_tweets",
+      "dependsOn": [1],
+      "capability": "ner",
+      "complexity": 40,
+      "payout_share": 0.10,
+      "description": "Extract entities: people, protocols, tokens mentioned"
+    },
+    {
+      "id": 6,
+      "job": "trend_analysis",
+      "input": "sentiment_scores + entities",
+      "dependsOn": [2, 3, 4, 5],
+      "capability": "data_analysis",
+      "complexity": 35,
+      "payout_share": 0.15,
+      "description": "Identify trending topics and sentiment shifts over time"
+    },
+    {
+      "id": 7,
+      "job": "report_generation",
+      "input": "aggregated_analysis",
+      "dependsOn": [6],
+      "capability": "reporting",
+      "complexity": 25,
+      "payout_share": 0.14,
+      "description": "Generate comprehensive sentiment report with visualizations"
+    }
+  ],
+  "analysis_config": {
+    "sentiment_model": "bert-base-uncased-sentiment",
+    "confidence_threshold": 0.75,
+    "languages": ["en"],
+    "output_format": "json",
+    "metrics": [
+      "overall_sentiment_score",
+      "positive_ratio",
+      "negative_ratio",
+      "neutral_ratio",
+      "trending_topics",
+      "influential_accounts",
+      "sentiment_timeline"
+    ]
+  }
+}

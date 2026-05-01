@@ -1,0 +1,118 @@
+{
+  "type": "prediction_market_validation",
+  "description": "Validate prediction market outcomes using multi-source data verification",
+  "bounty_eth": 0.04,
+  "deadline_hours": 3,
+  "min_score": 70,
+  "steps": [
+    {
+      "id": 0,
+      "job": "market_data_collection",
+      "input": "market_id: 0x123...abc, question: 'Will ETH reach $5000 by Dec 31?'",
+      "dependsOn": [],
+      "capability": "data_collection",
+      "complexity": 30,
+      "payout_share": 0.12,
+      "description": "Collect market parameters, bets, and resolution criteria"
+    },
+    {
+      "id": 1,
+      "job": "oracle_data_fetch_coinbase",
+      "input": "ETH/USD price on Dec 31, 2024",
+      "dependsOn": [0],
+      "capability": "oracle_integration",
+      "complexity": 35,
+      "payout_share": 0.10,
+      "description": "Fetch price data from Coinbase API"
+    },
+    {
+      "id": 2,
+      "job": "oracle_data_fetch_binance",
+      "input": "ETH/USD price on Dec 31, 2024",
+      "dependsOn": [0],
+      "capability": "oracle_integration",
+      "complexity": 35,
+      "payout_share": 0.10,
+      "description": "Fetch price data from Binance API"
+    },
+    {
+      "id": 3,
+      "job": "oracle_data_fetch_kraken",
+      "input": "ETH/USD price on Dec 31, 2024",
+      "dependsOn": [0],
+      "capability": "oracle_integration",
+      "complexity": 35,
+      "payout_share": 0.10,
+      "description": "Fetch price data from Kraken API"
+    },
+    {
+      "id": 4,
+      "job": "chainlink_verification",
+      "input": "ETH/USD price feed",
+      "dependsOn": [0],
+      "capability": "chainlink_oracle",
+      "complexity": 40,
+      "payout_share": 0.12,
+      "description": "Verify price using Chainlink oracle"
+    },
+    {
+      "id": 5,
+      "job": "data_consensus",
+      "input": "all_oracle_responses",
+      "dependsOn": [1, 2, 3, 4],
+      "capability": "consensus_algorithm",
+      "complexity": 45,
+      "payout_share": 0.15,
+      "description": "Calculate median price, detect outliers, establish consensus"
+    },
+    {
+      "id": 6,
+      "job": "outcome_determination",
+      "input": "consensus_price + market_criteria",
+      "dependsOn": [5],
+      "capability": "logic_evaluation",
+      "complexity": 30,
+      "payout_share": 0.10,
+      "description": "Determine if market condition was met (YES/NO)"
+    },
+    {
+      "id": 7,
+      "job": "fraud_detection",
+      "input": "all_data_sources + timestamps",
+      "dependsOn": [5],
+      "capability": "anomaly_detection",
+      "complexity": 40,
+      "payout_share": 0.11,
+      "description": "Check for price manipulation or data tampering"
+    },
+    {
+      "id": 8,
+      "job": "resolution_report",
+      "input": "outcome + evidence + confidence_score",
+      "dependsOn": [6, 7],
+      "capability": "reporting",
+      "complexity": 25,
+      "payout_share": 0.10,
+      "description": "Generate resolution report with proof and confidence level"
+    }
+  ],
+  "validation_config": {
+    "consensus_method": "median_with_outlier_removal",
+    "min_sources": 3,
+    "max_deviation_percent": 2.0,
+    "confidence_threshold": 0.95,
+    "fraud_indicators": [
+      "timestamp_manipulation",
+      "price_spike_anomaly",
+      "source_correlation_break",
+      "volume_inconsistency"
+    ],
+    "resolution_criteria": {
+      "type": "price_threshold",
+      "asset": "ETH/USD",
+      "threshold": 5000,
+      "operator": ">=",
+      "timestamp": "2024-12-31T23:59:59Z"
+    }
+  }
+}

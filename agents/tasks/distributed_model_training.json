@@ -1,0 +1,88 @@
+{
+  "type": "distributed_model_training",
+  "description": "Train a sentiment analysis model using distributed federated learning",
+  "bounty_eth": 0.05,
+  "deadline_hours": 4,
+  "min_score": 60,
+  "steps": [
+    {
+      "id": 0,
+      "job": "data_preprocessing",
+      "input": "ipfs://QmXYZ.../twitter_sentiment_dataset.csv",
+      "dependsOn": [],
+      "capability": "data_processing",
+      "complexity": 25,
+      "payout_share": 0.15,
+      "description": "Clean and tokenize text data, split into training batches"
+    },
+    {
+      "id": 1,
+      "job": "local_model_training_batch_1",
+      "input": "batch_1_data",
+      "dependsOn": [0],
+      "capability": "ml_training",
+      "complexity": 50,
+      "payout_share": 0.15,
+      "description": "Train local model on batch 1 (agents 1-5)"
+    },
+    {
+      "id": 2,
+      "job": "local_model_training_batch_2",
+      "input": "batch_2_data",
+      "dependsOn": [0],
+      "capability": "ml_training",
+      "complexity": 50,
+      "payout_share": 0.15,
+      "description": "Train local model on batch 2 (agents 6-10)"
+    },
+    {
+      "id": 3,
+      "job": "local_model_training_batch_3",
+      "input": "batch_3_data",
+      "dependsOn": [0],
+      "capability": "ml_training",
+      "complexity": 50,
+      "payout_share": 0.15,
+      "description": "Train local model on batch 3 (agents 11-15)"
+    },
+    {
+      "id": 4,
+      "job": "model_aggregation",
+      "input": "aggregate_weights_from_batches",
+      "dependsOn": [1, 2, 3],
+      "capability": "ml_aggregation",
+      "complexity": 40,
+      "payout_share": 0.20,
+      "description": "Aggregate model weights using federated averaging"
+    },
+    {
+      "id": 5,
+      "job": "model_validation",
+      "input": "test_dataset",
+      "dependsOn": [4],
+      "capability": "ml_validation",
+      "complexity": 30,
+      "payout_share": 0.10,
+      "description": "Validate aggregated model on test set, report accuracy"
+    },
+    {
+      "id": 6,
+      "job": "model_deployment",
+      "input": "ipfs_upload_and_register",
+      "dependsOn": [5],
+      "capability": "deployment",
+      "complexity": 20,
+      "payout_share": 0.10,
+      "description": "Upload final model to IPFS and register on-chain"
+    }
+  ],
+  "model_config": {
+    "architecture": "transformer",
+    "layers": 6,
+    "hidden_size": 512,
+    "num_classes": 3,
+    "learning_rate": 0.001,
+    "epochs_per_batch": 5,
+    "aggregation_method": "federated_averaging"
+  }
+}

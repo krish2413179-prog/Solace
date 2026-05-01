@@ -1,0 +1,115 @@
+{
+  "type": "data_labeling_annotation",
+  "description": "Label and annotate NFT images for AI training dataset",
+  "bounty_eth": 0.03,
+  "deadline_hours": 2,
+  "min_score": 50,
+  "steps": [
+    {
+      "id": 0,
+      "job": "dataset_distribution",
+      "input": "ipfs://QmABC.../nft_images_batch.zip",
+      "dependsOn": [],
+      "capability": "data_distribution",
+      "complexity": 15,
+      "payout_share": 0.10,
+      "description": "Split 10,000 images into 10 batches for parallel labeling"
+    },
+    {
+      "id": 1,
+      "job": "image_labeling_batch_1",
+      "input": "images_1-1000",
+      "dependsOn": [0],
+      "capability": "image_annotation",
+      "complexity": 40,
+      "payout_share": 0.08,
+      "description": "Label images: art_style, rarity, quality_score"
+    },
+    {
+      "id": 2,
+      "job": "image_labeling_batch_2",
+      "input": "images_1001-2000",
+      "dependsOn": [0],
+      "capability": "image_annotation",
+      "complexity": 40,
+      "payout_share": 0.08,
+      "description": "Label images: art_style, rarity, quality_score"
+    },
+    {
+      "id": 3,
+      "job": "image_labeling_batch_3",
+      "input": "images_2001-3000",
+      "dependsOn": [0],
+      "capability": "image_annotation",
+      "complexity": 40,
+      "payout_share": 0.08,
+      "description": "Label images: art_style, rarity, quality_score"
+    },
+    {
+      "id": 4,
+      "job": "image_labeling_batch_4",
+      "input": "images_3001-4000",
+      "dependsOn": [0],
+      "capability": "image_annotation",
+      "complexity": 40,
+      "payout_share": 0.08,
+      "description": "Label images: art_style, rarity, quality_score"
+    },
+    {
+      "id": 5,
+      "job": "image_labeling_batch_5",
+      "input": "images_4001-5000",
+      "dependsOn": [0],
+      "capability": "image_annotation",
+      "complexity": 40,
+      "payout_share": 0.08,
+      "description": "Label images: art_style, rarity, quality_score"
+    },
+    {
+      "id": 6,
+      "job": "quality_validation",
+      "input": "random_sample_500_images",
+      "dependsOn": [1, 2, 3, 4, 5],
+      "capability": "quality_control",
+      "complexity": 35,
+      "payout_share": 0.15,
+      "description": "Cross-validate labels, check consistency and accuracy"
+    },
+    {
+      "id": 7,
+      "job": "consensus_resolution",
+      "input": "disputed_labels",
+      "dependsOn": [6],
+      "capability": "consensus",
+      "complexity": 30,
+      "payout_share": 0.15,
+      "description": "Resolve conflicting labels through multi-agent voting"
+    },
+    {
+      "id": 8,
+      "job": "dataset_compilation",
+      "input": "merge_all_labels",
+      "dependsOn": [7],
+      "capability": "data_aggregation",
+      "complexity": 25,
+      "payout_share": 0.10,
+      "description": "Compile final labeled dataset and upload to IPFS"
+    },
+    {
+      "id": 9,
+      "job": "metadata_generation",
+      "input": "generate_dataset_metadata",
+      "dependsOn": [8],
+      "capability": "metadata",
+      "complexity": 20,
+      "payout_share": 0.10,
+      "description": "Generate dataset statistics and quality report"
+    }
+  ],
+  "labeling_schema": {
+    "art_style": ["abstract", "realistic", "pixel_art", "3d_render", "cartoon"],
+    "rarity": ["common", "uncommon", "rare", "epic", "legendary"],
+    "quality_score": "1-10",
+    "attributes": ["background", "character", "accessories", "effects"]
+  }
+}
