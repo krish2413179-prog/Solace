@@ -29,7 +29,8 @@
     "fund:20workers": "tsx src/fund_20_workers.ts",
     "fund:worker1": "tsx src/fund_worker1.ts",
     "gen:render-env": "tsx src/gen_render_env.ts",
-    "start:worker": "tsx src/start_worker.ts"
+    "start:worker": "tsx src/start_worker.ts",
+    "swarm": "tsx src/cloud_swarm.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.6",

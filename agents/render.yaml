@@ -1,377 +1,84 @@
 services:
-  # AXL Broker service
   - type: web
-    name: solace-broker
+    name: solace-swarm
     runtime: node
     region: oregon
-    plan: free
+    plan: starter        # use 'free' if you want free tier (spins down after inactivity)
     rootDir: agents
     buildCommand: npm install
-    startCommand: npm run broker
+    startCommand: npm run swarm
+    healthCheckPath: /health
     envVars:
-      - key: NODE_ENV
-        value: production
-      - key: AXL_BROKER_PORT
-        value: 7777
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 1
-  - type: worker
-    name: solace-worker-1
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
+      # ── Blockchain ──────────────────────────────────────────────────────
       - key: RPC_URL
-        sync: false
+        value: https://evmrpc-testnet.0g.ai
+      - key: OG_RPC_URL
+        value: https://evmrpc-testnet.0g.ai
       - key: SOLACE_ADDRESS
-        sync: false
+        value: 0xbce5eF3265eBBBf8F36b82f7284fCF350526E598
       - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
+        value: 0xabCD2Fb66e944fEc7Ed420B4c3f56264b7F6681d
+
+      # ── Keystores (set these in Render dashboard — keep secret) ─────────
       - key: KEYSTORE_PASSWORD
+        sync: false          # set in dashboard
+      - key: ORCH_KEYSTORE_B64
+        sync: false          # set in dashboard
+      - key: WORKER_1_KEYSTORE_B64
         sync: false
+      - key: WORKER_2_KEYSTORE_B64
+        sync: false
+      - key: WORKER_3_KEYSTORE_B64
+        sync: false
+      - key: WORKER_4_KEYSTORE_B64
+        sync: false
+      - key: WORKER_5_KEYSTORE_B64
+        sync: false
+      - key: WORKER_6_KEYSTORE_B64
+        sync: false
+      - key: WORKER_7_KEYSTORE_B64
+        sync: false
+      - key: WORKER_8_KEYSTORE_B64
+        sync: false
+      - key: WORKER_9_KEYSTORE_B64
+        sync: false
+      - key: WORKER_10_KEYSTORE_B64
+        sync: false
+
+      # ── Swarm config ────────────────────────────────────────────────────
+      - key: WORKER_COUNT
+        value: "10"
       - key: PIPELINE_CHANNEL_ID
         value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
 
-  # Worker 2
-  - type: worker
-    name: solace-worker-2
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
+      # ── 0G Network ──────────────────────────────────────────────────────
       - key: OG_STORAGE_URL
-        sync: false
+        value: https://indexer-storage-testnet-turbo.0g.ai
+      - key: OG_KV_URL
+        value: http://3.101.147.150:6789
+      - key: OG_STREAM_ID
+        value: "0x000000000000000000000000000000000000000000000000000000000000f2bd"
       - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
+        sync: false          # set in dashboard
 
-  # Worker 3
-  - type: worker
-    name: solace-worker-3
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
+      # ── Timing ──────────────────────────────────────────────────────────
+      - key: PIPELINE_DURATION
+        value: "600"
+      - key: AXL_COMMIT_TIMEOUT
+        value: "120000"
+      - key: AXL_ACTIVE_TIMEOUT
+        value: "180000"
+      - key: AXL_POLL_INTERVAL
+        value: "2000"
+      - key: STATUS_POLL_INTERVAL
+        value: "5000"
 
-  # Worker 4
-  - type: worker
-    name: solace-worker-4
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 5
-  - type: worker
-    name: solace-worker-5
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 6
-  - type: worker
-    name: solace-worker-6
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 7
-  - type: worker
-    name: solace-worker-7
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 8
-  - type: worker
-    name: solace-worker-8
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 9
-  - type: worker
-    name: solace-worker-9
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
-      - key: LOG_LEVEL
-        value: info
-
-  # Worker 10
-  - type: worker
-    name: solace-worker-10
-    runtime: node
-    region: oregon
-    plan: free
-    rootDir: agents
-    buildCommand: npm install
-    startCommand: npm run start:worker
-    envVars:
-      - key: RPC_URL
-        sync: false
-      - key: SOLACE_ADDRESS
-        sync: false
-      - key: REGISTRY_ADDRESS
-        sync: false
-      - key: AXL_BROKER_URL
-        fromService:
-          name: solace-broker
-          type: web
-          property: host
-      - key: KEYSTORE_B64
-        sync: false
-      - key: KEYSTORE_PASSWORD
-        sync: false
-      - key: PIPELINE_CHANNEL_ID
-        value: "0xSOLACE01"
-      - key: OG_RPC_URL
-        sync: false
-      - key: OG_STORAGE_URL
-        sync: false
-      - key: OG_COMPUTE_PRIVATE_KEY
-        sync: false
+      # ── Misc ────────────────────────────────────────────────────────────
+      - key: GAS_BUFFER
+        value: "1.3"
+      - key: TX_RETRIES
+        value: "3"
+      - key: TX_BACKOFF
+        value: "2000"
       - key: LOG_LEVEL
         value: info

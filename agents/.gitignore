@@ -10,7 +10,7 @@ render_env.txt
 *.b64
 
 # Documentation files (don't push to GitHub)
-*.md
+# *.md   <-- removed, we want RENDER_DEPLOY.md pushed
 !README.md
 
 # Logs
