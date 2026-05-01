@@ -1,0 +1,90 @@
+import { ethers } from "ethers";
+import { Indexer, Batcher, KvClient } from "@0gfoundation/0g-ts-sdk";
+import { config } from "../config.js";
+import { getLogger } from "../utils/logger.js";
+const logger = getLogger("og/storage");
+export async function persistTaskRecord(wallet, record) {
+    try {
+        const indexer = new Indexer(config.OG_STORAGE_URL);
+        const [nodes, err] = await indexer.selectNodes(1);
+        if (err)
+            throw new Error(`0G node selection failed: ${err}`);
+        const provider = new ethers.JsonRpcProvider(config.OG_RPC_URL);
+        const ogWallet = wallet.connect(provider);
+        // @ts-ignore - 0G SDK API mismatch
+        const flowContract = await indexer.getFlowContract(config.OG_RPC_URL, ogWallet);
+        const batcher = new Batcher(1, nodes, flowContract, config.OG_RPC_URL);
+        const key = `agent:${record.agentWallet}:task:${record.pipelineId}`;
+        const value = JSON.stringify(record);
+        const streamId = ethers.getBytes(config.OG_STREAM_ID);
+        const keyBytes = new TextEncoder().encode(key);
+        const valBytes = new TextEncoder().encode(value);
+        // @ts-ignore - 0G SDK type mismatch
+        batcher.streamDataBuilder.set(streamId, keyBytes, valBytes);
+        const [tx, batchErr] = await batcher.exec();
+        if (batchErr)
+            throw new Error(`0G batch error: ${batchErr}`);
+        logger.info(`Task record persisted to 0G | key: ${key} | tx: ${tx}`);
+        // @ts-ignore - 0G SDK returns object, we need string
+        return tx;
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.warn(`0G storage failed (non-fatal): ${msg}`);
+        return "";
+    }
+}
+export async function getAgentHistory(agentWallet) {
+    try {
+        const kvClient = new KvClient(config.OG_KV_URL);
+        const streamId = ethers.encodeBase64(ethers.getBytes(config.OG_STREAM_ID));
+        const prefix = `agent:${agentWallet}:task:`;
+        const keyBytes = new TextEncoder().encode(prefix);
+        const keyB64 = ethers.encodeBase64(keyBytes);
+        // @ts-ignore - 0G SDK type mismatch
+        const value = await kvClient.getValue(streamId, keyB64);
+        if (!value)
+            return [];
+        // @ts-ignore - 0G SDK returns Value type, we need string
+        const decoded = new TextDecoder().decode(ethers.decodeBase64(value));
+        return JSON.parse(decoded);
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.warn(`0G KV read failed: ${msg}`);
+        return [];
+    }
+}
+export async function updateAgentReputation(wallet, agentAddress, completed, failed, totalValue) {
+    try {
+        const indexer = new Indexer(config.OG_STORAGE_URL);
+        const [nodes, err] = await indexer.selectNodes(1);
+        if (err)
+            throw new Error(`0G node selection: ${err}`);
+        const provider = new ethers.JsonRpcProvider(config.OG_RPC_URL);
+        const ogWallet = wallet.connect(provider);
+        // @ts-ignore - 0G SDK API mismatch
+        const flowContract = await indexer.getFlowContract(config.OG_RPC_URL, ogWallet);
+        const batcher = new Batcher(1, nodes, flowContract, config.OG_RPC_URL);
+        const key = `agent:${agentAddress}:reputation`;
+        const value = JSON.stringify({
+            completed,
+            failed,
+            totalValue,
+            score: completed + failed === 0 ? 100 : Math.round((completed * 100) / (completed + failed)),
+            updatedAt: Date.now(),
+        });
+        const streamId = ethers.getBytes(config.OG_STREAM_ID);
+        // @ts-ignore - 0G SDK type mismatch
+        batcher.streamDataBuilder.set(streamId, new TextEncoder().encode(key), new TextEncoder().encode(value));
+        const [, batchErr] = await batcher.exec();
+        if (batchErr)
+            throw new Error(`0G batch: ${batchErr}`);
+        logger.info(`Reputation updated on 0G for ${agentAddress.slice(0, 10)}...`);
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        logger.warn(`0G reputation update failed: ${msg}`);
+    }
+}
+//# sourceMappingURL=storage.js.map

@@ -1,0 +1,28 @@
+import "dotenv/config";
+export declare const config: {
+    RPC_URL: string;
+    SOLACE_ADDRESS: string;
+    REGISTRY_ADDRESS: string;
+    KEYSTORE_PATH: string;
+    KEYSTORE_PASSWORD: string;
+    AXL_BROKER_URL: string;
+    PIPELINE_CHANNEL_ID: string;
+    AXL_PEER_ID: string;
+    OG_RPC_URL: string;
+    OG_STORAGE_URL: string;
+    OG_KV_URL: string;
+    OG_PROVIDER: string;
+    OG_STREAM_ID: string;
+    PIPELINE_DURATION: number;
+    AXL_COMMIT_TIMEOUT: number;
+    AXL_ACTIVE_TIMEOUT: number;
+    AXL_POLL_INTERVAL: number;
+    STATUS_POLL_INTERVAL: number;
+    KEEPER_POLL_INTERVAL: number;
+    GAS_BUFFER: number;
+    TX_RETRIES: number;
+    TX_BACKOFF: number;
+    LOG_LEVEL: string;
+    PIPELINE_STATUS: Record<number, string>;
+    STEP_STATUS: Record<number, string>;
+};
