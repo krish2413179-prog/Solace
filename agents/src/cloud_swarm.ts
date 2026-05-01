@@ -13,7 +13,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import http from 'http';
 
@@ -130,13 +130,10 @@ setTimeout(() => {
     const keystorePath = `./keystores/worker${i}.json`;
 
     // Check keystore exists before spawning
-    try {
-      const { existsSync } = require('fs');
-      if (!existsSync(join(process.cwd(), 'keystores', `worker${i}.json`))) {
-        console.warn(`⚠️  Skipping worker ${i} — keystore not found`);
-        continue;
-      }
-    } catch {}
+    if (!existsSync(join(process.cwd(), 'keystores', `worker${i}.json`))) {
+      console.warn(`⚠️  Skipping worker ${i} — keystore not found`);
+      continue;
+    }
 
     const delay = (i - 1) * 1500; // stagger 1.5s apart
     setTimeout(() => {
