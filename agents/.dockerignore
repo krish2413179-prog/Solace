@@ -1,0 +1,14 @@
+node_modules
+dist
+*.log
+logs
+keystores
+*.b64
+railway_env.txt
+.env
+.git
+.gitignore
+venv
+__pycache__
+*.pyc
+.DS_Store
