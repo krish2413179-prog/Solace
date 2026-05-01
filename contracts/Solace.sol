@@ -2,57 +2,95 @@
 pragma solidity ^0.8.20;
 
 interface IAgentRegistry {
-    function isRegistered(address wallet) external view returns (bool);
-    function isAvailable(address wallet)  external view returns (bool);
-    function isJailed(address wallet)     external view returns (bool);
-    function slashAgent(address wallet)   external;
+    function isAvailable(address wallet) external view returns (bool);
+    function isJailed(address wallet) external view returns (bool);
+    function getScore(address wallet) external view returns (uint256);
+    function slashAgent(address wallet) external;
     function recordDelivery(address wallet, uint256 payout) external;
     function recordFailure(address wallet) external;
+    function lockStake(address wallet, uint256 amount) external;
+    function unlockStake(address wallet, uint256 amount) external;
 }
 
 contract Solace {
 
-    uint256 public constant MIN_PIPELINE_DURATION = 5 minutes;
     uint256 public constant DISPUTE_WINDOW_BLOCKS = 48;
+    uint256 public constant REPLACEMENT_WINDOW    = 30 minutes;
+    uint256 public constant CASCADE_BUFFER        = 4 hours;
+    uint256 public constant MIN_VIABLE_WINDOW     = 2 hours;
+    uint256 public constant INSURANCE_BPS         = 300;
+    uint256 public constant MAX_AGENTS            = 15;
+    uint256 public constant MAX_DEPTH             = 8;
+    uint256 public constant VALIDATOR_COUNT       = 3;
 
-    enum Status   { NonExistent, Pending, Active, Disputed, Settled, RolledBack }
-    enum Delivery { Pending, Delivered, Accepted, Rejected }
+    enum PipelineStatus { NonExistent, Pending, Active, FailedPending, Settled, RolledBack }
+    enum StepStatus     { Pending, Runnable, Committed, Delivered, Accepted, Disputed, Failed }
 
-    struct Agent {
-        address  wallet;
-        uint256  payout;
-        bytes32  commitHash;
-        bool     delivered;
-        Delivery deliveryStatus;
-        uint256  disputeBlock;
+    struct Step {
+        address    agent;
+        uint256    payout;
+        bytes32    commitHash;
+        bytes32    childPipelineId;
+        StepStatus status;
+        uint256    disputeBlock;
+        uint256    replacementDeadline;
     }
 
-    struct Meta {
-        address orchestrator;
-        uint256 deadline;
-        uint256 bounty;
-        uint256 deliveredCount;
-        uint256 acceptedCount;
-        string  pipelineType;
-        Status  status;
+    struct PipelineMeta {
+        address        orchestrator;
+        bytes32        parentPipelineId;
+        uint256        parentStepIndex;
+        uint256        deadline;
+        uint256        bounty;
+        uint256        deliveredCount;
+        uint256        acceptedCount;
+        uint256        failedCount;
+        string         pipelineType;
+        PipelineStatus status;
+        uint8          depth;
+        uint256        minScore;
+    }
+
+    struct DisputePanel {
+        address[3] validators;
+        uint8      count;
+        uint8      votesFor;
+        uint8      votesAgainst;
     }
 
     IAgentRegistry public registry;
+    address        public verifier;
+    address        public insurancePool;
+    address        public owner;
+    uint256        public slashCollected;
 
-    mapping(bytes32 => Meta)                            private metas;
-    mapping(bytes32 => Agent[])                         private slots;
-    mapping(bytes32 => mapping(address => uint256))     private idx;
-    mapping(address => bytes32[])                       public  agentPipelines;
-    mapping(address => bytes32[])                       public  orchPipelines;
+    mapping(bytes32 => PipelineMeta)                         private metas;
+    mapping(bytes32 => Step[])                               private steps;
+    mapping(bytes32 => uint256[][])                          private stepDeps;
+    mapping(bytes32 => mapping(address => uint256))          private agentIdx;
+    mapping(bytes32 => address[])                            private ancestorAgents;
+    mapping(bytes32 => mapping(uint256 => DisputePanel))     private panels;
+    mapping(bytes32 => mapping(uint256 => mapping(address => bool))) private voted;
+    mapping(address => bytes32[])                            public  agentPipelines;
+    mapping(address => bytes32[])                            public  orchPipelines;
 
-    event PipelineCreated(bytes32 indexed id, address indexed orch, string pType, uint256 bounty, uint256 deadline);
+    event PipelineCreated(bytes32 indexed id, address indexed orch, bytes32 parentId, uint8 depth, uint256 bounty, uint256 deadline);
     event CommitmentsLocked(bytes32 indexed id);
-    event WorkSubmitted(bytes32 indexed id, address indexed agent, uint256 delivered, uint256 total);
-    event DeliveryAccepted(bytes32 indexed id, address indexed agent);
-    event DeliveryDisputed(bytes32 indexed id, address indexed agent);
-    event DisputeResolved(bytes32 indexed id, address indexed agent, bool agentWon);
+    event StepUnlocked(bytes32 indexed id, uint256 stepIndex);
+    event WorkSubmitted(bytes32 indexed id, uint256 stepIndex, address agent);
+    event StepVerified(bytes32 indexed id, uint256 stepIndex, bool passed);
+    event StepAccepted(bytes32 indexed id, uint256 stepIndex);
+    event StepDisputed(bytes32 indexed id, uint256 stepIndex);
+    event ValidatorJoined(bytes32 indexed id, uint256 stepIndex, address validator);
+    event DisputeVoteCast(bytes32 indexed id, uint256 stepIndex, address validator, bool votedFor);
+    event DisputeResolved(bytes32 indexed id, uint256 stepIndex, bool agentWon);
+    event StepFailed(bytes32 indexed id, uint256 stepIndex, bytes32 parentId, uint256 parentStepIndex);
+    event ReplacementWindowOpen(bytes32 indexed id, uint256 stepIndex, uint256 replacementDeadline);
+    event AgentReplaced(bytes32 indexed id, uint256 stepIndex, address oldAgent, address newAgent);
+    event ChildPipelineLinked(bytes32 indexed parentId, uint256 stepIndex, bytes32 childId);
+    event ChildSettledNotified(bytes32 indexed parentId, uint256 stepIndex);
     event PipelineSettled(bytes32 indexed id, uint256 totalPaid);
-    event PipelineRolledBack(bytes32 indexed id, address indexed orch, uint256 refund);
+    event PipelineRolledBack(bytes32 indexed id, bytes32 parentId, uint256 parentStepIndex, uint256 refund);
 
     error DoesNotExist();
     error AlreadyExists();
@@ -70,13 +108,28 @@ contract Solace {
     error BadHash();
     error NotDelivered();
     error NotDisputed();
-    error NoDisputeWindow();
     error ZeroPay();
     error Duplicate();
     error TransferFail();
+    error ScoreTooLow();
+    error CyclicAgent();
+    error BadDep();
+    error DepsNotMet();
+    error ChildNotSettled();
+    error BadDepth();
+    error BadCascadeBuffer();
+    error NotVerifier();
+    error NotValidator();
+    error AlreadyVoted();
+    error PanelFull();
+    error NotFailedPending();
+    error ReplacementExpired();
+    error ReplacementActive();
+    error NotLinked();
+    error NotOwner();
 
     modifier live(bytes32 id) {
-        if (metas[id].status == Status.NonExistent) revert DoesNotExist();
+        if (metas[id].status == PipelineStatus.NonExistent) revert DoesNotExist();
         _;
     }
 
@@ -85,222 +138,539 @@ contract Solace {
         _;
     }
 
-    constructor(address _registry) {
-        registry = IAgentRegistry(_registry);
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NotOwner();
+        _;
+    }
+
+    constructor(address _registry, address _verifier, address _insurancePool) {
+        registry     = IAgentRegistry(_registry);
+        verifier     = _verifier;
+        insurancePool = _insurancePool;
+        owner        = msg.sender;
+    }
+
+    function setVerifier(address _verifier) external onlyOwner {
+        verifier = _verifier;
+    }
+
+    function _initializeAncestors(bytes32 id, bytes32 parentPipelineId, uint256 deadline) internal returns (uint8) {
+        if (parentPipelineId == bytes32(0)) return 0;
+
+        if (metas[parentPipelineId].status == PipelineStatus.NonExistent) revert DoesNotExist();
+        if (metas[parentPipelineId].depth >= MAX_DEPTH) revert BadDepth();
+        if (deadline + CASCADE_BUFFER > metas[parentPipelineId].deadline) revert BadCascadeBuffer();
+
+        uint256 len = ancestorAgents[parentPipelineId].length;
+        for (uint256 i = 0; i < len; i++) {
+            ancestorAgents[id].push(ancestorAgents[parentPipelineId][i]);
+        }
+        
+        len = steps[parentPipelineId].length;
+        for (uint256 i = 0; i < len; i++) {
+            ancestorAgents[id].push(steps[parentPipelineId][i].agent);
+        }
+
+        return metas[parentPipelineId].depth + 1;
+    }
+
+    function _validateAndAddAgents(
+        bytes32 id,
+        address[] calldata agents,
+        uint256[] calldata payouts,
+        uint256[][] calldata dependsOn,
+        uint256 minScore
+    ) internal returns (uint256) {
+        uint256 total = 0;
+        address[] storage anc = ancestorAgents[id];
+
+        for (uint256 i = 0; i < agents.length; i++) {
+            if (payouts[i] == 0) revert ZeroPay();
+            if (agentIdx[id][agents[i]] != 0) revert Duplicate();
+            if (!registry.isAvailable(agents[i])) revert NotAgent();
+            if (registry.getScore(agents[i]) < minScore) revert ScoreTooLow();
+
+            for (uint256 j = 0; j < anc.length; j++) {
+                if (anc[j] == agents[i]) revert CyclicAgent();
+            }
+
+            for (uint256 j = 0; j < dependsOn[i].length; j++) {
+                if (dependsOn[i][j] >= agents.length) revert BadDep();
+            }
+
+            total += payouts[i];
+
+            steps[id].push(Step({
+                agent: agents[i],
+                payout: payouts[i],
+                commitHash: bytes32(0),
+                childPipelineId: bytes32(0),
+                status: StepStatus.Pending,
+                disputeBlock: 0,
+                replacementDeadline: 0
+            }));
+
+            stepDeps[id].push(dependsOn[i]);
+            agentIdx[id][agents[i]] = i + 1;
+            agentPipelines[agents[i]].push(id);
+        }
+
+        return total;
     }
 
     function createPipeline(
-        bytes32            id,
-        uint256            deadline,
-        string    calldata pType,
-        address[] calldata wallets,
-        uint256[] calldata payouts
+        bytes32     id,
+        uint256     deadline,
+        string calldata pType,
+        uint256     minScore,
+        bytes32     parentPipelineId,
+        uint256     parentStepIndex,
+        address[] calldata agents,
+        uint256[] calldata payouts,
+        uint256[][] calldata dependsOn
     ) external payable {
-        if (metas[id].status != Status.NonExistent)        revert AlreadyExists();
-        if (wallets.length == 0)                           revert NoAgents();
-        if (wallets.length > 10)                           revert TooManyAgents();
-        if (wallets.length != payouts.length)              revert BadLength();
-        if (block.timestamp + MIN_PIPELINE_DURATION > deadline) revert TooSoon();
+        if (metas[id].status != PipelineStatus.NonExistent)  revert AlreadyExists();
+        if (agents.length == 0)                               revert NoAgents();
+        if (agents.length > MAX_AGENTS)                       revert TooManyAgents();
+        if (agents.length != payouts.length)                  revert BadLength();
+        if (agents.length != dependsOn.length)                revert BadLength();
 
-        uint256 total = 0;
-        for (uint256 i = 0; i < wallets.length; i++) {
-            if (payouts[i] == 0)                revert ZeroPay();
-            if (idx[id][wallets[i]] != 0)       revert Duplicate();
-            if (!registry.isAvailable(wallets[i])) revert NotAgent();
+        uint8 depth = _initializeAncestors(id, parentPipelineId, deadline);
+        uint256 total = _validateAndAddAgents(id, agents, payouts, dependsOn, minScore);
 
-            total += payouts[i];
-            slots[id].push(Agent({
-                wallet:         wallets[i],
-                payout:         payouts[i],
-                commitHash:     bytes32(0),
-                delivered:      false,
-                deliveryStatus: Delivery.Pending,
-                disputeBlock:   0
-            }));
-            idx[id][wallets[i]] = i + 1;
-            agentPipelines[wallets[i]].push(id);
-        }
+        uint256 insurance = (total * INSURANCE_BPS) / 10000;
+        if (msg.value != total + insurance) revert BadValue();
 
-        if (msg.value != total) revert BadValue();
+        (bool ok,) = insurancePool.call{value: insurance}("");
+        if (!ok) revert TransferFail();
 
-        metas[id] = Meta({
-            orchestrator:   msg.sender,
-            deadline:       deadline,
-            bounty:         msg.value,
-            deliveredCount: 0,
-            acceptedCount:  0,
-            pipelineType:   pType,
-            status:         Status.Pending
+        metas[id] = PipelineMeta({
+            orchestrator:      msg.sender,
+            parentPipelineId:  parentPipelineId,
+            parentStepIndex:   parentStepIndex,
+            deadline:          deadline,
+            bounty:            total,
+            deliveredCount:    0,
+            acceptedCount:     0,
+            failedCount:       0,
+            pipelineType:      pType,
+            status:            PipelineStatus.Pending,
+            depth:             depth,
+            minScore:          minScore
         });
 
         orchPipelines[msg.sender].push(id);
-        emit PipelineCreated(id, msg.sender, pType, msg.value, deadline);
+
+        if (parentPipelineId != bytes32(0)) {
+            emit ChildPipelineLinked(parentPipelineId, parentStepIndex, id);
+        }
+
+        emit PipelineCreated(id, msg.sender, parentPipelineId, depth, total, deadline);
+    }
+
+    function linkChildPipeline(bytes32 parentId, uint256 stepIndex, bytes32 childId)
+        external live(parentId)
+    {
+        Step storage s = steps[parentId][stepIndex];
+        if (s.agent != msg.sender)           revert NotAgent();
+        if (s.childPipelineId != bytes32(0)) revert AlreadyDone();
+
+        PipelineMeta storage child = metas[childId];
+        if (child.status == PipelineStatus.NonExistent) revert DoesNotExist();
+        if (child.parentPipelineId != parentId)         revert NotLinked();
+        if (child.parentStepIndex != stepIndex)         revert NotLinked();
+
+        s.childPipelineId = childId;
+        registry.lockStake(msg.sender, child.bounty);
+        emit ChildPipelineLinked(parentId, stepIndex, childId);
     }
 
     function lockCommitments(bytes32 id, bytes32[] calldata hashes)
         external live(id) onlyOrch(id)
     {
-        Meta storage m = metas[id];
-        if (m.status != Status.Pending)       revert BadStatus();
-        if (hashes.length != slots[id].length) revert BadLength();
-        if (block.timestamp >= m.deadline)     revert TooLate();
+        PipelineMeta storage m = metas[id];
+        if (m.status != PipelineStatus.Pending)     revert BadStatus();
+        if (hashes.length != steps[id].length)      revert BadLength();
+        if (block.timestamp >= m.deadline)           revert TooLate();
 
-        for (uint256 i = 0; i < hashes.length; i++) {
-            slots[id][i].commitHash = hashes[i];
+        Step[] storage ss = steps[id];
+        for (uint256 i = 0; i < ss.length; i++) {
+            ss[i].commitHash = hashes[i];
+            if (stepDeps[id][i].length == 0) {
+                ss[i].status = StepStatus.Runnable;
+                emit StepUnlocked(id, i);
+            } else {
+                ss[i].status = StepStatus.Committed;
+            }
         }
-        m.status = Status.Active;
+
+        m.status = PipelineStatus.Active;
         emit CommitmentsLocked(id);
     }
 
-    function submitWork(bytes32 id, bytes32 hash) external live(id) {
-        Meta storage m = metas[id];
-        if (m.status != Status.Active)   revert BadStatus();
-        if (block.timestamp > m.deadline) revert TooLate();
+    function submitWork(bytes32 id, uint256 stepIndex, bytes32 hash)
+        external live(id)
+    {
+        PipelineMeta storage m = metas[id];
+        if (m.status != PipelineStatus.Active)       revert BadStatus();
+        if (block.timestamp > m.deadline)            revert TooLate();
 
-        uint256 i = idx[id][msg.sender];
-        if (i == 0) revert NotAgent();
+        Step storage s = steps[id][stepIndex];
+        if (s.agent != msg.sender)                   revert NotAgent();
+        if (s.status != StepStatus.Runnable)         revert DepsNotMet();
+        if (hash != s.commitHash)                    revert BadHash();
 
-        Agent storage a = slots[id][i - 1];
-        if (a.delivered)          revert AlreadyDone();
-        if (hash != a.commitHash) revert BadHash();
+        if (s.childPipelineId != bytes32(0)) {
+            if (metas[s.childPipelineId].status != PipelineStatus.Settled) revert ChildNotSettled();
+        }
 
-        a.delivered      = true;
-        a.deliveryStatus = Delivery.Delivered;
-        a.disputeBlock   = block.number + DISPUTE_WINDOW_BLOCKS;
-        m.deliveredCount += 1;
+        emit WorkSubmitted(id, stepIndex, msg.sender);
+        
+        _acceptStep(id, stepIndex);
+    }
 
-        emit WorkSubmitted(id, msg.sender, m.deliveredCount, slots[id].length);
+    function reportVerification(bytes32 id, uint256 stepIndex, bool passed)
+        external live(id)
+    {
+        if (msg.sender != verifier) revert NotVerifier();
 
-        if (m.deliveredCount == slots[id].length) {
+        Step storage s = steps[id][stepIndex];
+        if (s.status != StepStatus.Delivered) revert NotDelivered();
+
+        emit StepVerified(id, stepIndex, passed);
+
+        if (passed) {
+            _acceptStep(id, stepIndex);
+        } else {
+            _openDispute(id, stepIndex);
+        }
+    }
+
+    function autoAccept(bytes32 id, uint256 stepIndex) external live(id) {
+        Step storage s = steps[id][stepIndex];
+        if (s.status != StepStatus.Delivered)         revert NotDelivered();
+        if (block.number <= s.disputeBlock)           revert TooSoon();
+
+        _acceptStep(id, stepIndex);
+    }
+
+    function joinValidatorPanel(bytes32 id, uint256 stepIndex)
+        external live(id)
+    {
+        Step storage s = steps[id][stepIndex];
+        if (s.status != StepStatus.Disputed)          revert NotDisputed();
+        if (agentIdx[id][msg.sender] != 0)            revert NotAgent();
+        if (!registry.isAvailable(msg.sender))        revert NotAgent();
+
+        DisputePanel storage panel = panels[id][stepIndex];
+        if (panel.count >= VALIDATOR_COUNT)           revert PanelFull();
+
+        for (uint256 i = 0; i < panel.count; i++) {
+            if (panel.validators[i] == msg.sender)    revert Duplicate();
+        }
+
+        panel.validators[panel.count] = msg.sender;
+        panel.count += 1;
+        emit ValidatorJoined(id, stepIndex, msg.sender);
+    }
+
+    function voteOnDispute(bytes32 id, uint256 stepIndex, bool agentWon)
+        external live(id)
+    {
+        Step storage s = steps[id][stepIndex];
+        if (s.status != StepStatus.Disputed)         revert NotDisputed();
+        if (voted[id][stepIndex][msg.sender])        revert AlreadyVoted();
+
+        DisputePanel storage panel = panels[id][stepIndex];
+        bool isValidator = false;
+        for (uint256 i = 0; i < panel.count; i++) {
+            if (panel.validators[i] == msg.sender) { isValidator = true; break; }
+        }
+        if (!isValidator) revert NotValidator();
+
+        voted[id][stepIndex][msg.sender] = true;
+        if (agentWon) panel.votesFor++;
+        else          panel.votesAgainst++;
+
+        emit DisputeVoteCast(id, stepIndex, msg.sender, agentWon);
+
+        uint8 majority = uint8((VALIDATOR_COUNT / 2) + 1);
+        if (panel.votesFor >= majority) {
+            emit DisputeResolved(id, stepIndex, true);
+            _acceptStep(id, stepIndex);
+        } else if (panel.votesAgainst >= majority) {
+            emit DisputeResolved(id, stepIndex, false);
+            _failStep(id, stepIndex, true);
+        }
+    }
+
+    function openReplacementWindow(bytes32 id, uint256 stepIndex)
+        external live(id)
+    {
+        PipelineMeta storage m = metas[id];
+        if (m.status != PipelineStatus.Active && m.status != PipelineStatus.FailedPending) revert BadStatus();
+
+        Step storage s = steps[id][stepIndex];
+        if (s.status != StepStatus.Failed)           revert BadStatus();
+        if (s.childPipelineId == bytes32(0)) {
+            if (s.replacementDeadline != 0)          revert ReplacementActive();
+        }
+
+        uint256 timeLeft = m.deadline > block.timestamp ? m.deadline - block.timestamp : 0;
+        if (timeLeft < MIN_VIABLE_WINDOW)            revert TooLate();
+
+        s.replacementDeadline = block.timestamp + REPLACEMENT_WINDOW;
+        m.status = PipelineStatus.FailedPending;
+        emit ReplacementWindowOpen(id, stepIndex, s.replacementDeadline);
+    }
+
+    function replaceAgent(bytes32 id, uint256 stepIndex, address newAgent, bytes32 newCommitHash)
+        external live(id) onlyOrch(id)
+    {
+        PipelineMeta storage m = metas[id];
+        if (m.status != PipelineStatus.FailedPending) revert NotFailedPending();
+
+        Step storage s = steps[id][stepIndex];
+        if (s.status != StepStatus.Failed)            revert BadStatus();
+        if (block.timestamp > s.replacementDeadline)  revert ReplacementExpired();
+
+        if (!registry.isAvailable(newAgent))          revert NotAgent();
+        if (registry.getScore(newAgent) < m.minScore) revert ScoreTooLow();
+        if (agentIdx[id][newAgent] != 0)              revert Duplicate();
+
+        address[] storage anc = ancestorAgents[id];
+        for (uint256 i = 0; i < anc.length; i++) {
+            if (anc[i] == newAgent)                   revert CyclicAgent();
+        }
+
+        address old = s.agent;
+        agentIdx[id][old]     = 0;
+        agentIdx[id][newAgent] = stepIndex + 1;
+        s.agent               = newAgent;
+        s.commitHash          = newCommitHash;
+        s.childPipelineId     = bytes32(0);
+        s.status              = StepStatus.Runnable;
+        s.disputeBlock        = 0;
+        s.replacementDeadline = 0;
+
+        m.status       = PipelineStatus.Active;
+        m.failedCount -= 1;
+
+        agentPipelines[newAgent].push(id);
+
+        emit AgentReplaced(id, stepIndex, old, newAgent);
+    }
+
+    function notifyChildSettled(bytes32 parentId, uint256 stepIndex, bytes32 childId)
+        external live(parentId)
+    {
+        PipelineMeta storage child = metas[childId];
+        if (child.status != PipelineStatus.Settled)        revert BadStatus();
+        if (child.parentPipelineId != parentId)            revert NotLinked();
+        if (child.parentStepIndex != stepIndex)            revert NotLinked();
+
+        Step storage s = steps[parentId][stepIndex];
+        if (s.childPipelineId != childId)                  revert NotLinked();
+        if (s.status != StepStatus.Committed && s.status != StepStatus.Runnable) revert BadStatus();
+
+        registry.unlockStake(s.agent, child.bounty);
+        s.status = StepStatus.Runnable;
+        emit ChildSettledNotified(parentId, stepIndex);
+    }
+
+    function propagateFailure(bytes32 parentId, uint256 stepIndex, bytes32 childId)
+        external live(parentId)
+    {
+        PipelineMeta storage child = metas[childId];
+        if (child.status != PipelineStatus.RolledBack) revert BadStatus();
+        if (child.parentPipelineId != parentId)        revert NotLinked();
+        if (child.parentStepIndex != stepIndex)        revert NotLinked();
+
+        Step storage s = steps[parentId][stepIndex];
+        if (s.childPipelineId != childId)              revert NotLinked();
+
+        registry.unlockStake(s.agent, child.bounty);
+        _failStep(parentId, stepIndex, false);
+    }
+
+    function rollback(bytes32 id) external live(id) {
+        PipelineMeta storage m = metas[id];
+        if (m.status == PipelineStatus.Settled || m.status == PipelineStatus.RolledBack) revert BadStatus();
+        if (block.timestamp <= m.deadline) revert NotLate();
+
+        _rollback(id);
+    }
+
+    function forceRollbackOnFailure(bytes32 id) external live(id) {
+        PipelineMeta storage m = metas[id];
+        if (m.status != PipelineStatus.Active && m.status != PipelineStatus.FailedPending) revert BadStatus();
+
+        bool hasFailure = false;
+        Step[] storage ss = steps[id];
+        for (uint256 i = 0; i < ss.length; i++) {
+            if (ss[i].status == StepStatus.Failed) { hasFailure = true; break; }
+        }
+        if (!hasFailure) revert BadStatus();
+
+        uint256 timeLeft = m.deadline > block.timestamp ? m.deadline - block.timestamp : 0;
+        if (timeLeft >= MIN_VIABLE_WINDOW) revert TooSoon();
+
+        _rollback(id);
+    }
+
+    function _acceptStep(bytes32 id, uint256 stepIndex) internal {
+        PipelineMeta storage m = metas[id];
+        Step storage s = steps[id][stepIndex];
+
+        s.status = StepStatus.Accepted;
+        m.acceptedCount += 1;
+
+        registry.recordDelivery(s.agent, s.payout);
+        emit StepAccepted(id, stepIndex);
+
+        _unlockDependents(id, stepIndex);
+
+        if (m.acceptedCount == steps[id].length) {
             _settle(id);
         }
     }
 
-    function acceptDelivery(bytes32 id, uint256 i) external live(id) onlyOrch(id) {
-        Meta  storage m = metas[id];
-        Agent storage a = slots[id][i];
-
-        if (m.status != Status.Active && m.status != Status.Disputed) revert BadStatus();
-        if (!a.delivered)                              revert NotDelivered();
-        if (a.deliveryStatus != Delivery.Delivered)    revert AlreadyDone();
-
-        a.deliveryStatus = Delivery.Accepted;
-        m.acceptedCount += 1;
-
-        emit DeliveryAccepted(id, a.wallet);
-        if (m.acceptedCount == slots[id].length) _settle(id);
+    function _openDispute(bytes32 id, uint256 stepIndex) internal {
+        steps[id][stepIndex].status = StepStatus.Disputed;
+        emit StepDisputed(id, stepIndex);
     }
 
-    function disputeDelivery(bytes32 id, uint256 i) external live(id) onlyOrch(id) {
-        Meta  storage m = metas[id];
-        Agent storage a = slots[id][i];
+    function _failStep(bytes32 id, uint256 stepIndex, bool slash) internal {
+        PipelineMeta storage m = metas[id];
+        Step storage s = steps[id][stepIndex];
 
-        if (m.status != Status.Active)              revert BadStatus();
-        if (!a.delivered)                           revert NotDelivered();
-        if (block.number > a.disputeBlock)          revert NoDisputeWindow();
+        s.status = StepStatus.Failed;
+        m.failedCount += 1;
 
-        a.deliveryStatus = Delivery.Rejected;
-        m.status         = Status.Disputed;
-        emit DeliveryDisputed(id, a.wallet);
-    }
-
-    function resolveDispute(bytes32 id, uint256 i, bool agentWon) external live(id) {
-        Meta  storage m = metas[id];
-        Agent storage a = slots[id][i];
-
-        if (m.status != Status.Disputed) revert NotDisputed();
-
-        if (agentWon) {
-            a.deliveryStatus = Delivery.Accepted;
-            m.acceptedCount += 1;
-            m.status         = Status.Active;
-            if (m.acceptedCount == slots[id].length) _settle(id);
-        } else {
-            registry.slashAgent(a.wallet);
-            registry.recordFailure(a.wallet);
-            uint256 refund = m.bounty;
-            m.bounty       = 0;
-            m.status       = Status.RolledBack;
-            (bool ok,) = m.orchestrator.call{value: refund}("");
-            if (!ok) revert TransferFail();
-            emit PipelineRolledBack(id, m.orchestrator, refund);
+        registry.recordFailure(s.agent);
+        if (slash) {
+            registry.slashAgent(s.agent);
         }
-        emit DisputeResolved(id, a.wallet, agentWon);
+
+        emit StepFailed(id, stepIndex, m.parentPipelineId, m.parentStepIndex);
     }
 
-    function rollback(bytes32 id) external live(id) {
-        Meta storage m = metas[id];
-        if (m.status == Status.Settled || m.status == Status.RolledBack) revert BadStatus();
-        if (block.timestamp <= m.deadline) revert NotLate();
+    function _unlockDependents(bytes32 id, uint256 acceptedIndex) internal {
+        Step[] storage ss = steps[id];
+        for (uint256 i = 0; i < ss.length; i++) {
+            if (ss[i].status != StepStatus.Committed) continue;
+            uint256[] storage deps = stepDeps[id][i];
+            bool allMet = true;
+            for (uint256 j = 0; j < deps.length; j++) {
+                if (steps[id][deps[j]].status != StepStatus.Accepted) {
+                    allMet = false;
+                    break;
+                }
+            }
+            if (allMet) {
+                ss[i].status = StepStatus.Runnable;
+                emit StepUnlocked(id, i);
+            }
+        }
+    }
 
-        for (uint256 i = 0; i < slots[id].length; i++) {
-            if (!slots[id][i].delivered) {
-                registry.slashAgent(slots[id][i].wallet);
-                registry.recordFailure(slots[id][i].wallet);
+    function _settle(bytes32 id) internal {
+        PipelineMeta storage m = metas[id];
+        m.status = PipelineStatus.Settled;
+        uint256 paid = 0;
+        Step[] storage ss = steps[id];
+        for (uint256 i = 0; i < ss.length; i++) {
+            uint256 v = ss[i].payout;
+            paid += v;
+            (bool ok,) = ss[i].agent.call{value: v}("");
+            if (!ok) revert TransferFail();
+        }
+        emit PipelineSettled(id, paid);
+    }
+
+    function _rollback(bytes32 id) internal {
+        PipelineMeta storage m = metas[id];
+        m.status = PipelineStatus.RolledBack;
+
+        Step[] storage ss = steps[id];
+        for (uint256 i = 0; i < ss.length; i++) {
+            if (ss[i].status != StepStatus.Accepted) {
+                registry.recordFailure(ss[i].agent);
+                registry.slashAgent(ss[i].agent);
             }
         }
 
         uint256 refund = m.bounty;
-        m.bounty       = 0;
-        m.status       = Status.RolledBack;
+        m.bounty = 0;
         (bool ok,) = m.orchestrator.call{value: refund}("");
         if (!ok) revert TransferFail();
-        emit PipelineRolledBack(id, m.orchestrator, refund);
+
+        emit PipelineRolledBack(id, m.parentPipelineId, m.parentStepIndex, refund);
     }
 
-    function getPipelineStatus(bytes32 id) external view returns (Status) {
+    function getPipelineStatus(bytes32 id) external view returns (PipelineStatus) {
         return metas[id].status;
     }
 
-    function getPipelineCore(bytes32 id)
-        external view live(id)
-        returns (
-            address orch,
-            uint256 deadline,
-            uint256 bounty,
-            uint256 delivered,
-            uint256 total,
-            Status  status
-        )
-    {
-        Meta storage m = metas[id];
-        return (m.orchestrator, m.deadline, m.bounty, m.deliveredCount, slots[id].length, m.status);
+    function getPipelineCore(bytes32 id) external view live(id) returns (
+        address  orch,
+        bytes32  parentId,
+        uint256  deadline,
+        uint256  bounty,
+        uint256  delivered,
+        uint256  accepted,
+        uint256  total,
+        uint8    depth,
+        PipelineStatus status
+    ) {
+        PipelineMeta storage m = metas[id];
+        return (
+            m.orchestrator,
+            m.parentPipelineId,
+            m.deadline,
+            m.bounty,
+            m.deliveredCount,
+            m.acceptedCount,
+            steps[id].length,
+            m.depth,
+            m.status
+        );
     }
 
-    function getPipelineMeta(bytes32 id)
-        external view live(id)
-        returns (
-            uint256       accepted,
-            string memory pType
-        )
-    {
-        Meta storage m = metas[id];
-        return (m.acceptedCount, m.pipelineType);
+    function getStep(bytes32 id, uint256 i) external view live(id) returns (
+        address    agent,
+        uint256    payout,
+        bytes32    commitHash,
+        bytes32    childPipelineId,
+        StepStatus status,
+        uint256    disputeBlock,
+        uint256    replacementDeadline
+    ) {
+        Step storage s = steps[id][i];
+        return (s.agent, s.payout, s.commitHash, s.childPipelineId, s.status, s.disputeBlock, s.replacementDeadline);
     }
 
-    function getAgentSlot(bytes32 id, uint256 i)
-        external view live(id)
-        returns (address wallet, uint256 payout, bytes32 commitHash, bool delivered, Delivery deliveryStatus, uint256 disputeBlock)
-    {
-        Agent storage a = slots[id][i];
-        return (a.wallet, a.payout, a.commitHash, a.delivered, a.deliveryStatus, a.disputeBlock);
+    function getStepDeps(bytes32 id, uint256 i) external view live(id) returns (uint256[] memory) {
+        return stepDeps[id][i];
     }
 
-    function getAgentPipelines(address w) external view returns (bytes32[] memory) { return agentPipelines[w]; }
-    function getOrchPipelines(address w)  external view returns (bytes32[] memory) { return orchPipelines[w]; }
+    function getStepCount(bytes32 id) external view returns (uint256) {
+        return steps[id].length;
+    }
 
-    function _settle(bytes32 id) internal {
-        Meta storage m = metas[id];
-        m.status = Status.Settled;
-        uint256 paid = 0;
-        for (uint256 i = 0; i < slots[id].length; i++) {
-            address w = slots[id][i].wallet;
-            uint256 v = slots[id][i].payout;
-            paid     += v;
-            registry.recordDelivery(w, v);
-            (bool ok,) = w.call{value: v}("");
-            if (!ok) revert TransferFail();
-        }
-        emit PipelineSettled(id, paid);
+    function getAncestorAgents(bytes32 id) external view returns (address[] memory) {
+        return ancestorAgents[id];
+    }
+
+    function getAgentPipelines(address w) external view returns (bytes32[] memory) {
+        return agentPipelines[w];
+    }
+
+    function getOrchPipelines(address w) external view returns (bytes32[] memory) {
+        return orchPipelines[w];
+    }
+
+    receive() external payable {
+        slashCollected += msg.value;
     }
 }

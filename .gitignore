@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Keystores (NEVER commit private keys!)
+keystores/
+*.json.key
+
+# Logs
+*.log
+logs/
+error.log
+debug.log
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (don't push to GitHub)
+*.md
+!README.md
+
+# CSV
+*.csv
+!swarm_addresses.csv
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Temporary
+*.tmp
+*.temp
+.cache/

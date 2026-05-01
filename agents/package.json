@@ -1,0 +1,44 @@
+{
+  "name": "solace-agents",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "orchestrator": "tsx src/orchestrator.ts",
+    "broker": "tsx src/axl_broker.ts",
+    "broker:libp2p": "tsx src/axl_libp2p_broker.ts",
+    "worker": "tsx src/worker.ts",
+    "start:agents": "tsx src/run_agents.ts",
+    "keeper": "tsx src/keeper.ts",
+    "sabotage": "tsx src/sabotage.ts",
+    "keygen": "tsx src/keygen.ts"
+  },
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
+    "@0glabs/0g-serving-broker": "^0.7.5",
+    "@chainsafe/libp2p-gossipsub": "^14.1.2",
+    "@libp2p/bootstrap": "^12.0.19",
+    "@libp2p/identify": "^4.1.3",
+    "@libp2p/kad-dht": "^16.2.4",
+    "@libp2p/noise": "^1.0.1",
+    "@libp2p/ping": "^3.1.3",
+    "@libp2p/pubsub-peer-discovery": "^12.0.0",
+    "@libp2p/tcp": "^11.0.18",
+    "@libp2p/websockets": "^10.1.11",
+    "@libp2p/yamux": "^8.0.1",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0",
+    "libp2p": "^3.2.3",
+    "multiformats": "^13.4.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0",
+    "uint8arrays": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "solc": "^0.8.20",
+    "tsx": "^4.21.0"
+  }
+}

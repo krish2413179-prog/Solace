@@ -1,0 +1,45 @@
+{
+  "type": "smart_contract_audit",
+  "description": "Audit Solace smart contract for security vulnerabilities",
+  "bounty_eth": 0.016,
+  "deadline_hours": 1,
+  "min_score": 50,
+  "steps": [
+    {
+      "id": 0,
+      "job": "static_analysis",
+      "input": "0xbce5eF3265eBBBf8F36b82f7284fCF350526E598",
+      "dependsOn": [],
+      "capability": "smart_contract_audit",
+      "complexity": 30,
+      "payout_share": 0.25
+    },
+    {
+      "id": 1,
+      "job": "code_review",
+      "input": "Solace.sol functions with external calls",
+      "dependsOn": [0],
+      "capability": "smart_contract_audit",
+      "complexity": 40,
+      "payout_share": 0.25
+    },
+    {
+      "id": 2,
+      "job": "business_logic_audit",
+      "input": "onlyOwner and onlyOrch modifiers",
+      "dependsOn": [0],
+      "capability": "smart_contract_audit",
+      "complexity": 35,
+      "payout_share": 0.25
+    },
+    {
+      "id": 3,
+      "job": "code_review",
+      "input": "Aggregate findings from all steps",
+      "dependsOn": [1, 2],
+      "capability": "smart_contract_audit",
+      "complexity": 45,
+      "payout_share": 0.25
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+.env
+node_modules/
+dist/
+keystores/
+*.log
+.DS_Store
+
+# Documentation files (don't push to GitHub)
+*.md
+!README.md
+
+# Logs
+logs/
+error.log
+debug.log
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# CSV files
+*.csv
+!swarm_addresses.csv
