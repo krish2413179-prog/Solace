@@ -1,15 +1,12 @@
 .env
 node_modules/
+dist/
 keystores/
 *.log
 .DS_Store
 
-# Render deployment secrets - contains private keys, never commit
-render_env.txt
-*.b64
-
 # Documentation files (don't push to GitHub)
-# *.md   <-- removed, we want RENDER_DEPLOY.md pushed
+*.md
 !README.md
 
 # Logs

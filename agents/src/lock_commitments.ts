@@ -26,7 +26,7 @@ async function loadWallet(): Promise<ethers.Wallet> {
   const keystoreJson = fs.readFileSync(ORCHESTRATOR_KEYSTORE, 'utf-8');
   const wallet = await ethers.Wallet.fromEncryptedJson(keystoreJson, KEYSTORE_PASSWORD);
   const provider = new ethers.JsonRpcProvider(RPC_URL);
-  return wallet.connect(provider) as ethers.Wallet;
+  return wallet.connect(provider);
 }
 
 async function lockCommitments(pipelineId: string) {

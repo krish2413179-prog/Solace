@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "postinstall": "node scripts/patch-esm.js",
     "orchestrator": "tsx src/orchestrator.ts",
     "broker": "tsx src/axl_broker.ts",
     "broker:libp2p": "tsx src/axl_libp2p_broker.ts",
@@ -28,10 +27,7 @@
     "assign": "tsx src/assign_tasks.ts",
     "check:balances": "tsx src/check_balances.ts",
     "fund:20workers": "tsx src/fund_20_workers.ts",
-    "fund:worker1": "tsx src/fund_worker1.ts",
-    "gen:render-env": "tsx src/gen_render_env.ts",
-    "start:worker": "tsx src/start_worker.ts",
-    "swarm": "npm run build && node --experimental-specifier-resolution=node dist/cloud_swarm.js"
+    "fund:worker1": "tsx src/fund_worker1.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.6",
