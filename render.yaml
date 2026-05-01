@@ -47,7 +47,7 @@ services:
 
       # ── Swarm config ────────────────────────────────────────────────────
       - key: WORKER_COUNT
-        value: "10"
+        value: "3"
       - key: PIPELINE_CHANNEL_ID
         value: "0xSOLACE01"
 

@@ -1,15 +1,11 @@
 /**
- * cloud_swarm.ts
- * 
- * Single entry point for Render deployment.
- * Starts: AXL Broker + Orchestrator + 10 Workers — all in one process.
- * 
- * Required env vars:
- *   KEYSTORE_PASSWORD   - password for all keystores
- *   WORKER_COUNT        - number of workers to start (default: 10)
- *   WORKER_KEYSTORES_B64 - comma-separated base64 encoded keystores for workers 1-N
- *   ORCH_KEYSTORE_B64   - base64 encoded orchestrator keystore
- *   RPC_URL, SOLACE_ADDRESS, REGISTRY_ADDRESS, etc.
+ * cloud_swarm.ts — Memory-efficient Render deployment
+ *
+ * Runs broker inline + spawns workers as child processes using
+ * pre-compiled JS (node dist/) instead of tsx — much lower memory.
+ *
+ * Build step: npm run build (tsc)
+ * Start: node dist/cloud_swarm.js
  */
 
 import { spawn, ChildProcess } from 'child_process';
@@ -17,142 +13,178 @@ import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import http from 'http';
 
-const WORKER_COUNT = parseInt(process.env.WORKER_COUNT ?? '10');
-const PASSWORD = process.env.KEYSTORE_PASSWORD ?? 'password123';
-const PORT = parseInt(process.env.PORT ?? '8080'); // Render assigns PORT
+// ── Config ─────────────────────────────────────────────────────────────────
+
+const WORKER_COUNT = parseInt(process.env.WORKER_COUNT ?? '3');
+const PASSWORD     = process.env.KEYSTORE_PASSWORD ?? 'password123';
+const PORT         = parseInt(process.env.PORT ?? '8080');
+const BROKER_PORT  = 7777;
 
 // ── Write keystores from env vars ──────────────────────────────────────────
 
 const keystoreDir = join(process.cwd(), 'keystores');
 mkdirSync(keystoreDir, { recursive: true });
 
-// Orchestrator keystore
 const orchB64 = process.env.ORCH_KEYSTORE_B64;
 if (orchB64) {
   writeFileSync(join(keystoreDir, 'orchestrator.json'), Buffer.from(orchB64, 'base64').toString('utf8'));
   console.log('✅ Orchestrator keystore written');
-} else {
-  console.warn('⚠️  ORCH_KEYSTORE_B64 not set — orchestrator will not start');
 }
 
-// Worker keystores — either individual WORKER_N_KEYSTORE_B64 or comma-separated WORKER_KEYSTORES_B64
-const workerKeystoresB64 = process.env.WORKER_KEYSTORES_B64?.split(',') ?? [];
-
+let writtenWorkers = 0;
 for (let i = 1; i <= WORKER_COUNT; i++) {
-  const individual = process.env[`WORKER_${i}_KEYSTORE_B64`];
-  const b64 = individual ?? workerKeystoresB64[i - 1];
+  const b64 = process.env[`WORKER_${i}_KEYSTORE_B64`];
   if (b64?.trim()) {
     writeFileSync(join(keystoreDir, `worker${i}.json`), Buffer.from(b64.trim(), 'base64').toString('utf8'));
+    writtenWorkers++;
     console.log(`✅ Worker ${i} keystore written`);
-  } else {
-    console.warn(`⚠️  Worker ${i} keystore not found — skipping`);
   }
 }
 
-// ── Health check HTTP server (Render requires a web service to respond) ────
+console.log(`\n📦 ${writtenWorkers}/${WORKER_COUNT} worker keystores ready\n`);
 
-const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      workers: WORKER_COUNT,
-      uptime: process.uptime()
-    }));
-  } else {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end(`Solace Agent Swarm — ${WORKER_COUNT} workers running`);
+// ── Inline AXL Broker (no child process, no tsx overhead) ─────────────────
+
+const MSG_TTL_MS = 3_600_000;
+const channels   = new Map<string, any[]>();
+
+const brokerServer = http.createServer(async (req, res) => {
+  const url    = req.url ?? '/';
+  const method = req.method ?? 'GET';
+
+  const send = (status: number, body: unknown) => {
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(body));
+  };
+
+  const readBody = (): Promise<string> => new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (c: Buffer) => (data += c));
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+
+  const prune = (id: string) => {
+    const cutoff = Date.now() - MSG_TTL_MS;
+    channels.set(id, (channels.get(id) ?? []).filter((m: any) => m.timestamp * 1000 > cutoff));
+  };
+
+  if (url === '/health') return send(200, { status: 'ok', transport: 'http-rest' });
+
+  const chanMatch = url.match(/^\/channel\/([^/]+)\/(publish|messages)$/);
+  if (!chanMatch) return send(404, { error: 'not found' });
+
+  const [, channelId, action] = chanMatch;
+  if (!channels.has(channelId)) channels.set(channelId, []);
+  prune(channelId);
+
+  if (action === 'publish' && method === 'POST') {
+    try {
+      const msg = JSON.parse(await readBody());
+      msg.timestamp = msg.timestamp ?? Date.now() / 1000;
+      channels.get(channelId)!.push(msg);
+      return send(200, { ok: true });
+    } catch {
+      return send(400, { error: 'bad json' });
+    }
   }
+
+  if (action === 'messages' && method === 'GET') {
+    const qs      = url.includes('?') ? url.split('?')[1] : '';
+    const params  = new URLSearchParams(qs);
+    const after   = parseFloat(params.get('after') ?? '0');
+    const limit   = parseInt(params.get('limit') ?? '100');
+    const msgType = params.get('msg_type')?.toUpperCase();
+    let msgs = (channels.get(channelId) ?? []).filter((m: any) => m.timestamp > after);
+    if (msgType) msgs = msgs.filter((m: any) => m.msg_type?.toUpperCase() === msgType);
+    return send(200, { messages: msgs.slice(-limit) });
+  }
+
+  return send(405, { error: 'method not allowed' });
 });
 
-server.listen(PORT, () => {
-  console.log(`\n🌐 Health server listening on port ${PORT}`);
+brokerServer.listen(BROKER_PORT, () => {
+  console.log(`🔌 AXL Broker running on port ${BROKER_PORT}`);
 });
 
-// ── Process management ─────────────────────────────────────────────────────
+// ── Health server (Render requires HTTP on $PORT) ──────────────────────────
 
 const processes: ChildProcess[] = [];
 
-function spawnProcess(label: string, cmd: string, args: string[], env: NodeJS.ProcessEnv, color: number) {
-  const child = spawn(cmd, args, { env, shell: true, stdio: 'pipe' });
+const healthServer = http.createServer((req, res) => {
+  const alive = processes.filter(p => !p.killed).length;
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    status: 'ok',
+    workers: writtenWorkers,
+    alive_processes: alive,
+    uptime: process.uptime()
+  }));
+});
 
-  child.stdout?.on('data', (data: Buffer) => {
-    data.toString().split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-      console.log(`\x1b[${color}m[${label}]\x1b[0m ${line}`);
-    });
+healthServer.listen(PORT, () => {
+  console.log(`🌐 Health server on port ${PORT}`);
+});
+
+// ── Spawn workers using compiled JS (node dist/) ───────────────────────────
+
+const baseEnv: NodeJS.ProcessEnv = {
+  ...process.env,
+  KEYSTORE_PASSWORD:   PASSWORD,
+  PIPELINE_CHANNEL_ID: process.env.PIPELINE_CHANNEL_ID ?? '0xSOLACE01',
+  AXL_BROKER_URL:      `http://127.0.0.1:${BROKER_PORT}`,
+};
+
+function spawnWorker(index: number) {
+  const keystorePath = `./keystores/worker${index}.json`;
+  if (!existsSync(join(keystoreDir, `worker${index}.json`))) {
+    console.warn(`⚠️  Skipping worker ${index} — keystore not found`);
+    return;
+  }
+
+  const color = 31 + (index % 6);
+  const label = `Worker${index}`;
+
+  const child = spawn('npx', ['tsx', 'src/worker.ts'], {
+    env: { ...baseEnv, KEYSTORE_PATH: keystorePath, AGENT_INDEX: String(index) },
+    stdio: 'pipe',
+    shell: false,
   });
 
-  child.stderr?.on('data', (data: Buffer) => {
-    data.toString().split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-      console.error(`\x1b[31m[${label} ERR]\x1b[0m ${line}`);
-    });
-  });
-
+  child.stdout?.on('data', (d: Buffer) =>
+    d.toString().split('\n').filter(Boolean).forEach(l =>
+      console.log(`\x1b[${color}m[${label}]\x1b[0m ${l}`)
+    )
+  );
+  child.stderr?.on('data', (d: Buffer) =>
+    d.toString().split('\n').filter(Boolean).forEach(l =>
+      console.error(`\x1b[31m[${label} ERR]\x1b[0m ${l}`)
+    )
+  );
   child.on('close', (code: number | null) => {
-    console.log(`\x1b[33m[${label}]\x1b[0m exited with code ${code}`);
+    console.log(`\x1b[33m[${label}]\x1b[0m exited (${code}) — restarting in 10s`);
+    setTimeout(() => spawnWorker(index), 10_000); // auto-restart
   });
 
   processes.push(child);
-  return child;
 }
 
-const baseEnv = {
-  ...process.env,
-  KEYSTORE_PASSWORD: PASSWORD,
-  PIPELINE_CHANNEL_ID: process.env.PIPELINE_CHANNEL_ID ?? '0xSOLACE01',
-  AXL_BROKER_URL: `http://127.0.0.1:7777`,
-  AXL_PORT: '7777',
-};
-
-// ── Step 1: Start broker ───────────────────────────────────────────────────
-
-console.log('\n🚀 Starting AXL Broker...');
-spawnProcess('Broker', 'npx', ['tsx', 'src/axl_broker.ts'], baseEnv, 36);
-
-// ── Step 2: Start orchestrator after 3s ───────────────────────────────────
+// ── Start workers staggered after broker is ready ─────────────────────────
 
 setTimeout(() => {
-  if (!orchB64) return;
-
-  console.log('\n🎯 Starting Orchestrator...');
-  spawnProcess('Orch', 'npx', ['tsx', 'src/orchestrator.ts'], {
-    ...baseEnv,
-    KEYSTORE_PATH: './keystores/orchestrator.json',
-  }, 35);
-}, 3000);
-
-// ── Step 3: Start workers staggered after 5s ──────────────────────────────
-
-setTimeout(() => {
-  console.log(`\n👷 Starting ${WORKER_COUNT} workers...\n`);
-
+  console.log(`\n👷 Starting ${writtenWorkers} workers...\n`);
   for (let i = 1; i <= WORKER_COUNT; i++) {
-    const keystorePath = `./keystores/worker${i}.json`;
-
-    // Check keystore exists before spawning
-    if (!existsSync(join(process.cwd(), 'keystores', `worker${i}.json`))) {
-      console.warn(`⚠️  Skipping worker ${i} — keystore not found`);
-      continue;
-    }
-
-    const delay = (i - 1) * 1500; // stagger 1.5s apart
-    setTimeout(() => {
-      const color = 30 + (i % 7) + 1;
-      spawnProcess(`Worker${i}`, 'npx', ['tsx', 'src/worker.ts'], {
-        ...baseEnv,
-        KEYSTORE_PATH: keystorePath,
-        AGENT_INDEX: i.toString(),
-      }, color);
-    }, delay);
+    setTimeout(() => spawnWorker(i), (i - 1) * 3000);
   }
-}, 5000);
+}, 1500);
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 
 const shutdown = () => {
-  console.log('\n🛑 Shutting down all processes...');
+  console.log('\n🛑 Shutting down...');
   processes.forEach(p => p.kill('SIGTERM'));
-  server.close();
+  brokerServer.close();
+  healthServer.close();
   setTimeout(() => process.exit(0), 3000);
 };
 
