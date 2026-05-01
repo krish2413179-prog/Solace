@@ -145,7 +145,7 @@ function spawnWorker(index: number) {
   const color = 31 + (index % 6);
   const label = `Worker${index}`;
 
-  const child = spawn('node', ['--experimental-specifier-resolution=node', 'dist/worker.js'], {
+  const child = spawn('node', ['dist/worker.js'], {
     env: { ...baseEnv, KEYSTORE_PATH: keystorePath, AGENT_INDEX: String(index) },
     stdio: 'pipe',
     shell: false,
