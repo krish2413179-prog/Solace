@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 
-const WORKER_COUNT = 8;
+const WORKER_COUNT = 25;
 const processes: ChildProcess[] = [];
 
 console.log(`Starting AXL Broker and ${WORKER_COUNT} agents...\n`);
