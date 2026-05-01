@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: solace-agents
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run decode && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Add your KEYSTORE_ORCH_B64 and KEYSTORE_WORKER*_B64 variables
+      # in the Render dashboard under Environment Variables

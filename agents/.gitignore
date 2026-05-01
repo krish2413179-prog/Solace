@@ -10,6 +10,7 @@ railway_env.txt
 # Documentation files (don't push to GitHub)
 *.md
 !README.md
+!DEPLOYMENT.md
 
 # Logs
 logs/
