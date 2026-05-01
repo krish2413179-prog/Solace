@@ -12,7 +12,10 @@
     "start:agents": "tsx src/run_agents.ts",
     "keeper": "tsx src/keeper.ts",
     "sabotage": "tsx src/sabotage.ts",
-    "keygen": "tsx src/keygen.ts"
+    "keygen": "tsx src/keygen.ts",
+    "decode": "ts-node decode_keystores.ts",
+  "start": "npm run decode && node dist/your-main-file.js"
+
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.6",
