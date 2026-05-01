@@ -15,7 +15,21 @@
     "keygen": "tsx src/keygen.ts",
     "decode": "ts-node decode_keystores.ts",
     "start": "node dist/run_agents.js",
-    "submit": "tsx src/submit_task.ts"
+    "submit": "tsx src/submit_task.ts",
+    "fund:orch": "tsx src/fund_orchestrator.ts",
+    "fund:workers": "tsx src/fund_workers.ts",
+    "check:scores": "tsx src/check_scores.ts",
+    "add:caps": "tsx add_capabilities.ts",
+    "check:pipeline": "tsx src/check_pipeline.ts",
+    "lock": "tsx src/lock_commitments.ts",
+    "broadcast": "tsx src/broadcast_pipeline.ts",
+    "start:5workers": "tsx src/run_5_workers.ts",
+    "assign": "tsx src/assign_tasks.ts",
+    "check:balances": "tsx src/check_balances.ts",
+    "fund:20workers": "tsx src/fund_20_workers.ts",
+    "fund:worker1": "tsx src/fund_worker1.ts",
+    "gen:render-env": "tsx src/gen_render_env.ts",
+    "start:worker": "tsx src/start_worker.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.6",

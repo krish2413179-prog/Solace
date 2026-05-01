@@ -5,6 +5,10 @@ keystores/
 *.log
 .DS_Store
 
+# Render deployment secrets - contains private keys, never commit
+render_env.txt
+*.b64
+
 # Documentation files (don't push to GitHub)
 *.md
 !README.md
