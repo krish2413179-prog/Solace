@@ -15,7 +15,7 @@ import http from 'http';
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
-const WORKER_COUNT = parseInt(process.env.WORKER_COUNT ?? '3');
+const WORKER_COUNT = parseInt(process.env.WORKER_COUNT ?? '10');
 const PASSWORD     = process.env.KEYSTORE_PASSWORD ?? 'password123';
 const PORT         = parseInt(process.env.PORT ?? '8080');
 const BROKER_PORT  = 7777;
@@ -145,7 +145,7 @@ function spawnWorker(index: number) {
   const color = 31 + (index % 6);
   const label = `Worker${index}`;
 
-  const child = spawn('npx', ['tsx', 'src/worker.ts'], {
+  const child = spawn('node', ['dist/worker.js'], {
     env: { ...baseEnv, KEYSTORE_PATH: keystorePath, AGENT_INDEX: String(index) },
     stdio: 'pipe',
     shell: false,

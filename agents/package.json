@@ -30,7 +30,7 @@
     "fund:worker1": "tsx src/fund_worker1.ts",
     "gen:render-env": "tsx src/gen_render_env.ts",
     "start:worker": "tsx src/start_worker.ts",
-    "swarm": "tsx src/cloud_swarm.ts"
+    "swarm": "npm run build && node dist/cloud_swarm.js"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.6",
