@@ -14,7 +14,8 @@
     "sabotage": "tsx src/sabotage.ts",
     "keygen": "tsx src/keygen.ts",
     "decode": "ts-node decode_keystores.ts",
-    "start": "node dist/run_agents.js"
+    "start": "node dist/run_agents.js",
+    "submit": "tsx src/submit_task.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.6",
